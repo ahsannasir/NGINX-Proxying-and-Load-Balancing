@@ -6,7 +6,7 @@ FROM nginx:latest
 COPY ./mysite.template /etc/nginx/conf.d/mysite.template
 
 #example to inject environment variables
-UN envsubst '$$BACKEND_URL $$BACKEND_PORT' < /etc/nginx/conf.d/mysite.template > /etc/nginx/conf.d/de
+#RUN envsubst '$$BACKEND_URL $$BACKEND_PORT' < /etc/nginx/conf.d/mysite.template > /etc/nginx/conf.d/de
 
 EXPOSE 80 
 EXPOSE 9090
