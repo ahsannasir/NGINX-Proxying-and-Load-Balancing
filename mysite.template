@@ -1,0 +1,151 @@
+
+# https://www.youtube.com/watch?v=t6jldtXpc2Y&t=7s&ab_channel=AhsanNasir 
+
+upstream backend {
+ 
+  # NGINX as a load balancer
+  # ip based consistent hashing
+
+  # IP Hash Based load balancing 
+  # Better session handling
+  ip_hash;
+
+  # Available Backend servers and fail fast timeouts
+
+  # Enviornment variables injected on run-time through dockerfiles/compose or kubernetes config map
+   server ${BACKEND_URL}:${BACKEND_PORT};
+   server ${BACKEND_URL2}:${BACKEND_PORT2} max_fails=2 fail_timeout=10s;
+   server ${BACKEND_URL3}:${BACKEND_PORT3} max_fails=2 fail_timeout=10s;
+
+}
+
+
+server {
+
+  # HTTP calls redicrects to HTTPs automatically
+
+  listen 80 default_server;
+  listen [::]:80 default_server;
+  # server_name _;
+  return 301 https://$host$request_uri;
+}
+
+#--------------------- NGINX as a reverse proxy and content caching----------------------#
+
+# Custom Server configurations to enable Caching, Load balancing and ensure CORs handling
+
+proxy_cache_path /etc/nginx/cache keys_zone=my_cache:10m inactive=60m use_temp_path=off;
+
+server {
+
+  listen 9090;
+
+  location / {
+
+    # Caching and fault tolerance
+      proxy_cache_use_stale error timeout http_500 http_502 http_503 http_504;
+      proxy_cache my_cache;
+      proxy_cache_methods GET;
+      proxy_cache_min_uses 1;
+      proxy_cache_valid 200 5s;
+      proxy_cache_bypass $http_cachepurge;
+ 
+    proxy_pass  http://backend/sisservice/;
+    proxy_redirect     off;
+    proxy_set_header   Host $host;
+    proxy_set_header   X-Real-IP $remote_addr;
+    proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header   X-Forwarded-Host $server_name;
+
+    #Avoid duplicate headers! (For CORs)
+
+    proxy_hide_header 'access-control-allow-origin';
+    proxy_hide_header  'Access-Control-Allow-Headers';
+    proxy_hide_header  'Access-Control-Allow-Methods';
+        
+    # add_header X-Cache-Status $upstream_cache_status;
+    if ($request_method = 'OPTIONS') {
+        add_header 'Access-Control-Allow-Origin' '*';
+        add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS, DELETE';
+     
+      # Tell client that this pre-flight info is valid for 20 days
+
+        add_header 'Access-Control-Max-Age' 1728000;
+        add_header 'Content-Type' 'text/plain; charset=utf-8';
+        add_header 'Content-Length' 0;
+    return 204;
+   }
+   if ($request_method = 'POST') {
+        add_header 'Access-Control-Allow-Origin' '*';
+        add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS, DELETE';
+        add_header 'Access-Control-Allow-Headers' 'Authorization,access-control-allow-origin,Access-Control-Allow-Headers, Origin,Accept, X-Requested-With, Content-Type, Access-Control-Request-Method, Access-Control-Request-Headers';
+        add_header 'Access-Control-Expose-Headers' 'Content-Length,Content-Range';        
+   }
+   if ($request_method = 'GET') {
+        add_header 'Access-Control-Allow-Origin' '*';
+        add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS, DELETE';
+        add_header 'Access-Control-Allow-Headers' 'Authorization, access-control-allow-origin,Access-Control-Allow-Headers, Origin,Accept, X-Requested-With, Content-Type, Access-Control-Request-Method, Access-Control-Request-Headers';
+        add_header 'Access-Control-Expose-Headers' 'Content-Length,Content-Range';
+   }
+   if ($request_method = 'DELETE') {
+        add_header 'Access-Control-Allow-Origin' '*';
+        add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS, DELETE';
+        add_header 'Access-Control-Allow-Headers' 'Authorization,access-control-allow-origin,Access-Control-Allow-Headers, Origin,Accept, X-Requested-With, Content-Type, Access-Control-Request-Method, Access-Control-Request-Headers';
+        add_header 'Access-Control-Expose-Headers' 'Content-Length,Content-Range';
+   }
+
+  }
+}
+
+ # ---------------------- NGINX proxy to Go Service---------------------
+
+server {
+  listen 9091;
+  location / {
+
+    proxy_pass  http://${WATCHDOG_URL}:${WATCHDOG_PORT};
+    proxy_redirect     off;
+    proxy_set_header   Host $host;
+    proxy_set_header   X-Real-IP $remote_addr;
+    proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header   X-Forwarded-Host $server_name;
+    
+    #Avoid duplicate headers!
+    proxy_hide_header 'access-control-allow-origin';
+    proxy_hide_header  'Access-Control-Allow-Headers';
+    proxy_hide_header  'Access-Control-Allow-Methods';
+        
+    # add_header X-Cache-Status $upstream_cache_status;
+    if ($request_method = 'OPTIONS') {
+        add_header 'Access-Control-Allow-Origin' '*';
+        add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS, DELETE';
+        add_header 'Access-Control-Allow-Headers' 'Token, access-control-allow-origin,Access-Control-Allow-Headers, Origin,Accept, X-Requested-With, Content-Type, Access-Control-Request-Method, Access-Control-Request-Headers';
+      
+      # Tell client that this pre-flight info is valid for 20 days
+      
+        add_header 'Access-Control-Max-Age' 1728000;
+        add_header 'Content-Type' 'application/json';
+        add_header 'Content-Length' 0;
+    return 204;
+   }
+   if ($request_method = 'POST') {
+        add_header 'Access-Control-Allow-Origin' '*';
+        add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS, DELETE';
+        add_header 'Access-Control-Allow-Headers' 'Token,access-control-allow-origin,Access-Control-Allow-Headers, Origin,Accept, X-Requested-With, Content-Type, Access-Control-Request-Method, Access-Control-Request-Headers';
+        add_header 'Access-Control-Expose-Headers' 'Content-Length,Content-Range,Content-Type';        
+   }
+   if ($request_method = 'GET') {
+        add_header 'Access-Control-Allow-Origin' '*';
+        add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS, DELETE';
+        add_header 'Access-Control-Allow-Headers' 'Token, access-control-allow-origin,Access-Control-Allow-Headers, Origin,Accept, X-Requested-With, Content-Type, Access-Control-Request-Method, Access-Control-Request-Headers';
+        add_header 'Access-Control-Expose-Headers' 'Content-Length,Content-Range';
+   }
+   if ($request_method = 'DELETE') {
+        add_header 'Access-Control-Allow-Origin' '*';
+        add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS, DELETE';
+        add_header 'Access-Control-Allow-Headers' 'Token,access-control-allow-origin,Access-Control-Allow-Headers, Origin,Accept, X-Requested-With, Content-Type, Access-Control-Request-Method, Access-Control-Request-Headers';
+        add_header 'Access-Control-Expose-Headers' 'Content-Length,Content-Range';
+   }
+
+  }
+}
