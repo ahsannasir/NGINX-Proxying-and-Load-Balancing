@@ -18,9 +18,9 @@ $ docker push proxy {your_repo_url}
 ```
 
 If you have a kubernetes cluster, just change the image repository URL in kubernetes-deployment.yaml and apply:
-
+```
 $ Kubectl apply -f ./kubernetes-deployment.yaml
-
+```
 and it's up and running!
 
 Happy coding ;-)
